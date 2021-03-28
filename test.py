@@ -7,7 +7,7 @@ def username_generator(size=8, chars=string.ascii_lowercase):
     return ''.join(random.choice(chars) for _ in range(size))
 
 # Generate usernames
-usernames = [username_generator() for i in range(30)]
+usernames = ['205644941', 'botvimar'] + [username_generator() for i in range(28)]
 
 # Test
 for i, username in enumerate(usernames):
