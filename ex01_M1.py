@@ -21,10 +21,10 @@ from numpy import median, quantile
 
 URL = 'http://aoi.ise.bgu.ac.il/?user={}&password={}'
 ALL_CHARS = string.ascii_lowercase
-NUM_ROUNDS_LENGTH_GUESS = 1
-NUM_ROUNDS_CHARS_GUESS = 10
+NUM_ROUNDS_LENGTH_GUESS = 10
+NUM_ROUNDS_CHARS_GUESS = 3
 MAX_PASSWD_LENGTH = 32
-NUM_LIVES = 1
+NUM_LIVES = 1 # Lives per character. Will be explained in milestone 2.
 TIMEOUT = 20 # In seconds
 RETRY_LIMIT = 10
 DIFFICULTY = None # Not used in this milestone
